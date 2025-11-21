@@ -1,0 +1,399 @@
+CASCADING BANDITS WITH LinUCB - PSEUDOCODE
+
+Overview
+
+This system implements a personalized recommendation engine using Cascading Bandits with Linear Upper Confidence Bound (LinUCB) algorithm.
+INITIALIZATION
+
+Example
+DEFINE:
+  - Feature dimension d = 6
+  - Exploration parameter α = 1.0
+  - For each product i:
+      A_i = I_d (d×d identity matrix)
+      b_i = 0_d (d-dimensional zero vector)
+PART 1: PREDICTION PHASE (RE-RANKING)
+
+Example
+FUNCTION ReRankProducts():
+    
+    INPUT:
+        - User features: [offline_transactions, offline_atv, online_transactions, online_atv]
+        - Product features: [global_popularity, co_occurrence]
+        - Current matrices: A_i, b_i for each product
+        - Existing rankings for each user
+    
+    FOR each user u:
+        FOR each product i in user's catalog:
+            
+            // Step 1: Combine features into context vector
+            x_ui = CONCATENATE(user_features[u], product_features[i])
+            // x_ui = [u_offline_trans, u_offline_atv, u_online_trans, 
+            //         u_online_atv, i_popularity, i_co_occurrence]
+            
+            // Step 2: Calculate estimated reward (exploitation)
+            θ_i = A_i^(-1) × b_i
+            raw_score_ui = θ_i^T × x_ui
+            
+            // Step 3: Calculate uncertainty (exploration)
+            uncertainty_ui = α × sqrt(x_ui^T × A_i^(-1) × x_ui)
+            
+            // Step 4: Calculate UCB score
+            ucb_score_ui = raw_score_ui + uncertainty_ui
+            
+        END FOR
+        
+        // Step 5: Rank products by UCB score (descending)
+        new_ranking[u] = SORT products by ucb_score_ui DESC
+        
+    END FOR
+    
+    // Step 6: Persist new rankings
+    UPDATE user_product_rankings_table WITH new_ranking
+    
+    RETURN new_ranking
+
+END FUNCTION
+PART 2: UPDATE PHASE (LEARNING FROM CLICKS)
+
+Example
+FUNCTION LearnFromClicks():
+    
+    INPUT:
+        - Click events: (user_id, clicked_product_id)
+        - Current rankings for each user
+        - User features and product features
+        - Current matrices: A_i, b_i for each product
+    
+    // Initialize update accumulators
+    A_updates = {} // Dictionary: product_id → list of A matrices
+    b_updates = {} // Dictionary: product_id → list of b vectors
+    
+    FOR each click event (u, clicked_product):
+        
+        // Step 1: Find position of clicked product
+        click_position = FIND_POSITION(clicked_product IN ranking[u])
+        
+        // Step 2: Get cascade (all products shown before click)
+        cascade = GET_PRODUCTS_AT_POSITIONS(1 to click_position IN ranking[u])
+        
+        // Step 3: Process each product in cascade
+        FOR each product i in cascade:
+            
+            // Step 3a: Assign reward
+            IF i == clicked_product THEN
+                reward = 1
+            ELSE
+                reward = 0
+            END IF
+            
+            // Step 3b: Get context vector
+            x_ui = CONCATENATE(user_features[u], product_features[i])
+            
+            // Step 3c: Update matrices
+            A_i_new = A_i + x_ui × x_ui^T  // Outer product
+            b_i_new = b_i + reward × x_ui
+            
+            // Step 3d: Store updates
+            A_updates[i].APPEND(A_i_new)
+            b_updates[i].APPEND(b_i_new)
+            
+        END FOR
+        
+    END FOR
+    
+    // Step 4: Aggregate updates per product
+    FOR each product i with updates:
+        
+        // Take final cumulative update
+        A_i_final = LAST(A_updates[i])
+        b_i_final = LAST(b_updates[i])
+        
+        // Persist updates
+        UPDATE product_matrices_table 
+        SET A_i = A_i_final, b_i = b_i_final
+        WHERE product_id = i
+        
+    END FOR
+    
+    RETURN update_statistics
+
+END FUNCTION
+MAIN EXECUTION LOOP
+
+Example
+FUNCTION Main():
+    
+    // ========================================
+    // INITIALIZATION
+    // ========================================
+    
+    LOAD user_features FROM database
+    LOAD product_features FROM database
+    LOAD product_matrices (A_i, b_i) FROM database
+    LOAD current_rankings FROM database
+    LOAD click_events FROM database
+    
+    LOG "Starting Cascading Bandits System"
+    LOG "Users: {count(users)}, Products: {count(products)}"
+    
+    // ========================================
+    // PHASE 1: PREDICTION (RE-RANKING)
+    // ========================================
+    
+    LOG "Phase 1: Re-ranking products using LinUCB"
+    
+    new_rankings = ReRankProducts()
+    
+    LOG "Re-ranking complete for {count(users)} users"
+    LOG "Average ranking changes: {calculate_avg_change()}"
+    
+    // ========================================
+    // PHASE 2: UPDATE (LEARNING)
+    // ========================================
+    
+    LOG "Phase 2: Learning from user clicks"
+    
+    update_stats = LearnFromClicks()
+    
+    LOG "Learning complete"
+    LOG "Products updated: {update_stats.products_updated}"
+    LOG "Total interactions: {update_stats.total_interactions}"
+    LOG "Positive rewards: {update_stats.positive_rewards}"
+    
+    // ========================================
+    // VALIDATION & METRICS
+    // ========================================
+    
+    LOG "Phase 3: Validation and metrics"
+    
+    metrics = CalculateMetrics()
+    
+    LOG "Average clicked product position: {metrics.avg_click_position}"
+    LOG "Click-through rate: {metrics.ctr}%"
+    LOG "Products with improved rankings: {metrics.improved_products}"
+    
+    LOG "System update completed successfully"
+    
+END FUNCTION
+HELPER FUNCTIONS
+
+Example
+FUNCTION CalculateMetrics():
+    
+    // Click-through rate
+    ctr = (total_clicks / total_impressions) × 100
+    
+    // Average position of clicked products
+    avg_click_position = MEAN(position of clicked products)
+    
+    // Ranking improvement
+    FOR each clicked product:
+        old_position = original_ranking[product]
+        new_position = updated_ranking[product]
+        improvement = old_position - new_position
+    END FOR
+    avg_improvement = MEAN(improvement)
+    
+    RETURN {ctr, avg_click_position, avg_improvement}
+    
+END FUNCTION
+
+
+FUNCTION FIND_POSITION(product IN ranking):
+    
+    FOR position = 1 TO LENGTH(ranking):
+        IF ranking[position] == product THEN
+            RETURN position
+        END IF
+    END FOR
+    
+    RETURN -1 // Not found
+    
+END FUNCTION
+
+
+FUNCTION GET_PRODUCTS_AT_POSITIONS(start TO end IN ranking):
+    
+    cascade = []
+    
+    FOR position = start TO end:
+        cascade.APPEND(ranking[position])
+    END FOR
+    
+    RETURN cascade
+    
+END FUNCTION
+DATA STRUCTURES
+
+Example
+USER_FEATURES:
+    - customerId: string
+    - norm_offline_transactions: float [0, 1]
+    - norm_offline_atv: float [0, 1]
+    - norm_online_transactions: float [0, 1]
+    - norm_online_atv: float [0, 1]
+
+PRODUCT_FEATURES:
+    - productCode: string
+    - norm_global_popularity: float [0, 1]
+    - norm_co_occurrence: float [0, 1]
+
+PRODUCT_MATRICES:
+    - productCode: string
+    - A_i: matrix[6×6] of floats
+    - b_i: vector[6] of floats
+
+USER_RANKINGS:
+    - customerId: string
+    - product_rankings: map<int, string>
+      // Key: position (1, 2, 3, ...)
+      // Value: productCode
+
+CLICK_EVENTS:
+    - customerId: string
+    - productCode: string
+    - click_sequence: int
+MATHEMATICAL FORMULAS
+
+Example
+CONTEXT VECTOR:
+    x_ui ∈ ℝ^6 = [user_features (4D), product_features (2D)]
+
+PARAMETER ESTIMATION:
+    θ_i = A_i^(-1) × b_i
+    where:
+        A_i ∈ ℝ^(6×6) - covariance matrix
+        b_i ∈ ℝ^6 - reward-weighted feature sum
+
+UCB SCORE:
+    UCB_i(x_ui) = θ_i^T × x_ui + α × sqrt(x_ui^T × A_i^(-1) × x_ui)
+    where:
+        θ_i^T × x_ui - exploitation term (expected reward)
+        α × sqrt(...) - exploration term (uncertainty)
+
+MATRIX UPDATES:
+    A_i ← A_i + x_ui × x_ui^T
+    b_i ← b_i + r_ui × x_ui
+    where:
+        r_ui ∈ {0, 1} - observed reward (click or no click)
+
+CASCADE MODEL:
+    For click at position k:
+        Update all products at positions 1, 2, ..., k
+        Reward = 1 for clicked product (position k)
+        Reward = 0 for products at positions 1, ..., k-1
+ALGORITHM PROPERTIES
+
+Example
+TIME COMPLEXITY:
+    - Prediction (per user): O(n × d^3)
+      where n = products per user, d = feature dimension
+    
+    - Update (per click): O(k × d^2)
+      where k = click position (cascade depth)
+
+SPACE COMPLEXITY:
+    - Per product: O(d^2) for A_i matrix
+    - Total: O(m × d^2)
+      where m = total products
+
+CONVERGENCE:
+    - Regret bound: O(√T) with high probability
+    - T = number of rounds (clicks)
+
+KEY PROPERTIES:
+    1. Exploration-Exploitation Trade-off: Controlled by α
+    2. Position Bias Handling: Via cascade model
+    3. Personalization: Via user-specific features
+    4. Online Learning: Updates after each interaction
+WORKFLOW DIAGRAM
+
+Example
+┌─────────────────────────────────────────────────────────────┐
+│                    CASCADING BANDITS SYSTEM                  │
+└─────────────────────────────────────────────────────────────┘
+
+    ┌──────────────┐
+    │  Initialize  │
+    │  A_i = I     │
+    │  b_i = 0     │
+    └──────┬───────┘
+           │
+           ▼
+    ┌──────────────────────────────────────┐
+    │  PHASE 1: PREDICTION (RE-RANKING)    │
+    ├──────────────────────────────────────┤
+    │  For each user-product pair:         │
+    │    1. Combine features → x_ui        │
+    │    2. Calculate θ_i = A_i^(-1) b_i   │
+    │    3. Calculate UCB score            │
+    │    4. Rank by UCB (descending)       │
+    │  Update rankings in database         │
+    └──────────────┬───────────────────────┘
+                   │
+                   ▼
+    ┌──────────────────────────────────────┐
+    │        User sees ranked list          │
+    └──────────────┬───────────────────────┘
+                   │
+                   ▼
+    ┌──────────────────────────────────────┐
+    │        User clicks product            │
+    └──────────────┬───────────────────────┘
+                   │
+                   ▼
+    ┌──────────────────────────────────────┐
+    │  PHASE 2: UPDATE (LEARNING)          │
+    ├──────────────────────────────────────┤
+    │  For each click:                     │
+    │    1. Get click position k           │
+    │    2. Get cascade (positions 1..k)   │
+    │    3. Assign rewards:                │
+    │       - Clicked product: r = 1       │
+    │       - Others in cascade: r = 0     │
+    │    4. Update matrices:               │
+    │       A_i ← A_i + x × x^T            │
+    │       b_i ← b_i + r × x              │
+    │  Persist updates to database         │
+    └──────────────┬───────────────────────┘
+                   │
+                   ▼
+    ┌──────────────────────────────────────┐
+    │         Calculate Metrics             │
+    │  - CTR, Avg Position, Improvements   │
+    └──────────────┬───────────────────────┘
+                   │
+                   ▼
+           ┌───────────────┐
+           │  Loop Back    │
+           │  (Next Round) │
+           └───────────────┘
+KEY INSIGHTS
+
+Example
+1. EXPLORATION vs EXPLOITATION:
+   - High α → More exploration (try uncertain products)
+   - Low α → More exploitation (stick with known winners)
+
+2. CASCADE MODEL:
+   - Accounts for position bias
+   - Products higher in list get more "credit" for non-clicks
+   - Clicked product gets positive reward
+   - Skipped products get negative signal
+
+3. PERSONALIZATION:
+   - User features capture individual preferences
+   - Product features capture item characteristics
+   - Combination allows personalized recommendations
+
+4. ONLINE LEARNING:
+   - System improves continuously with each interaction
+   - No need for batch retraining
+   - Adapts to changing user preferences
+
+5. SCALABILITY:
+   - Matrix operations parallelizable
+   - Updates can be batched
+   - Incremental learning reduces computation
+This pseudocode provides a complete, implementation-ready blueprint for the Cascading Bandits system! 🚀
