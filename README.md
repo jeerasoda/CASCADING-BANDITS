@@ -1,13 +1,13 @@
 ---
 
-# 🚀 Cascading Bandits Ranking Pipeline (PySpark)
+# Cascading Bandits Ranking Pipeline (PySpark)
 
 This project implements a **Cascading Multi-Armed Bandits** system for personalized product ranking and online learning using **PySpark + Delta Lake**.
 All logic lives inside **`main.py`**.
 
 ---
 
-## 🔍 What This Project Does
+## What This Project Does
 
 * Re-ranks products for each user using **Linear UCB**
 * Learns from real click events (cascade model)
@@ -16,7 +16,7 @@ All logic lives inside **`main.py`**.
 
 ---
 
-## 🧠 Algorithm Summary (Linear UCB + Cascading Bandits)
+## Algorithm Summary (Linear UCB + Cascading Bandits)
 
 ### **Model Update**
 
@@ -51,27 +51,27 @@ A clicked product receives:
 
 ---
 
-## 💡 Example Use Cases
+## Example Use Cases
 
-### ✔️ E-commerce personalization
+### E-commerce personalization
 
 Re-rank products in real time and learn from click-through behavior.
 
-### ✔️ Search result ranking
+### Search result ranking
 
 Boost results with exploration-driven scoring.
 
-### ✔️ Content recommendation
+### Content recommendation
 
 Rank videos, articles, or ads based on predicted engagement + uncertainty.
 
-### ✔️ Ad/slot optimization
+### Ad/slot optimization
 
 Select the best item to show when space is limited.
 
 ---
 
-## 📦 Project Structure
+## Project Structure
 
 ```
 main.py        # End-to-end ranking + learning pipeline
@@ -79,7 +79,7 @@ main.py        # End-to-end ranking + learning pipeline
 
 ---
 
-## ⚙️ How to Run
+## How to Run
 
 ```bash
 spark-submit main.py
@@ -93,7 +93,7 @@ Or inside Databricks:
 
 ---
 
-## 🛠 Requirements
+## Requirements
 
 * PySpark 3.x
 * Delta Lake
@@ -107,12 +107,8 @@ pip install pyspark numpy delta-spark
 
 ---
 
-## 📘 License
+## License
 
 MIT License.
 
 ---
-
-
-📌 A one-paragraph “Why Cascading Bandits?” explanation
-📌 A visually polished GitHub README with badges and banners
